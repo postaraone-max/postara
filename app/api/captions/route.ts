@@ -1,6 +1,11 @@
 // app/api/captions/route.ts
 import { NextResponse } from "next/server";
 
+// Quick GET for testing in the browser: https://your-site/api/captions
+export async function GET() {
+  return NextResponse.json({ ok: true, route: "/api/captions" });
+}
+
 export async function POST(req: Request) {
   try {
     const { tone = "Casual", platform = "Instagram", hashtags = "" } = await req.json();
