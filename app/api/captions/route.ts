@@ -1,14 +1,23 @@
 // app/api/captions/route.ts
 import { NextResponse } from "next/server";
 
-// Quick GET for testing in the browser: https://your-site/api/captions
+type CaptionsRequest = {
+  tone?: string;
+  platform?: string;
+  hashtags?: string;
+};
+
+// Quick GET for testing in the browser: /api/captions
 export async function GET() {
   return NextResponse.json({ ok: true, route: "/api/captions" });
 }
 
 export async function POST(req: Request) {
   try {
-    const { tone = "Casual", platform = "Instagram", hashtags = "" } = await req.json();
+    const body = (await req.json()) as CaptionsRequest;
+    const tone = body.tone ?? "Casual";
+    const platform = body.platform ?? "Instagram";
+    const hashtags = body.hashtags ?? "";
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -44,8 +53,15 @@ Return ONLY a JSON array of 5 strings, no extra text.
       return NextResponse.json({ error: txt }, { status: 500 });
     }
 
-    const data = await r.json();
-    const content: string = data?.choices?.[0]?.message?.content ?? "[]";
+    // OpenAI response is dynamic; treat as unknown and narrow carefully
+    const data: unknown = await r.json();
+    const content =
+      typeof data === "object" &&
+      data !== null &&
+      Array.isArray((data as any).choices) &&
+      (data as any).choices[0]?.message?.content
+        ? String((data as any).choices[0].message.content)
+        : "[]";
 
     let captions: string[] = [];
     try {
@@ -54,7 +70,7 @@ Return ONLY a JSON array of 5 strings, no extra text.
     } catch {
       captions = content
         .split("\n")
-        .map(s => s.trim())
+        .map((s) => s.trim())
         .filter(Boolean)
         .slice(0, 5);
     }
@@ -64,7 +80,9 @@ Return ONLY a JSON array of 5 strings, no extra text.
     }
 
     return NextResponse.json({ captions });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Unknown error" }, { status: 500 });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
