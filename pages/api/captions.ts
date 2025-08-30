@@ -7,15 +7,20 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<CaptionsResponse>
 ) {
+  // Quick GET so you can test in the browser
   if (req.method === "GET") {
-    return res.status(200).json({ captions: ["API is up. Use POST to generate captions."] });
+    return res
+      .status(200)
+      .json({ captions: ["API is up. Use POST to generate captions."] });
   }
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed. Use POST." });
   }
 
   try {
     const { tone = "Casual", platform = "Instagram", hashtags = "" } = req.body || {};
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
@@ -29,12 +34,15 @@ Return ONLY a JSON array of 5 strings, no extra text.
 
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.8
-      })
+        temperature: 0.8,
+      }),
     });
 
     if (!r.ok) return res.status(500).json({ error: await r.text() });
@@ -47,9 +55,16 @@ Return ONLY a JSON array of 5 strings, no extra text.
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) captions = parsed.slice(0, 5).map(String);
     } catch {
-      captions = content.split("\n").map(s => s.trim()).filter(Boolean).slice(0, 5);
+      captions = content
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 5);
     }
-    if (captions.length === 0) captions = ["Sorry—couldn’t generate captions right now. Try again."];
+
+    if (captions.length === 0) {
+      captions = ["Sorry—couldn’t generate captions right now. Try again."];
+    }
 
     return res.status(200).json({ captions });
   } catch (err: unknown) {
