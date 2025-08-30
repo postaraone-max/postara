@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 export default function ToolPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -37,8 +38,9 @@ export default function ToolPage() {
       }
 
       setCaptions(json.captions);
-    } catch (err: any) {
-      setErrorMsg(err?.message || "AI is busy. Try again.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "AI is busy. Try again.";
+      setErrorMsg(msg);
       setCaptions([]);
     } finally {
       setIsLoading(false);
@@ -147,7 +149,7 @@ export default function ToolPage() {
         )}
 
         <div style={{ marginTop: 16 }}>
-          <a href="/" style={{ color: '#2a5bd7', textDecoration: 'none' }}>← Back home</a>
+          <Link href="/" style={{ color: '#2a5bd7', textDecoration: 'none' }}>← Back home</Link>
         </div>
       </div>
     </main>
