@@ -47,7 +47,11 @@ Return ONLY a JSON array of 5 strings, no extra text.
       const parsed = JSON.parse(content);
       if (Array.isArray(parsed)) captions = parsed.slice(0, 5).map(String);
     } catch {
-      captions = content.split("\n").map(s => s.trim()).filter(Boolean).slice(0, 5);
+      captions = content
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean)
+        .slice(0, 5);
     }
 
     if (captions.length === 0) {
