@@ -1,3 +1,4 @@
+// app/tool/page.tsx
 'use client';
 
 import { useState } from 'react';
@@ -9,22 +10,7 @@ export default function ToolPage() {
   const [hashtags, setHashtags] = useState('#vibes #goodtimes');
   const [captions, setCaptions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  const handleGenerate = () => {
-    setIsLoading(true);
-    setCaptions([]);
-    setTimeout(() => {
-      const mock = [
-        'Just living my best life! 😎 #DoItForTheGram',
-        'This right here? This is the content you came for. 🙌',
-        'Mood: Better than expected. ✨',
-        'Caption couldn’t do this moment justice. 🤩',
-        `Feeling ${tone.toLowerCase()} today! ${hashtags}`
-      ];
-      setCaptions(mock);
-      setIsLoading(false);
-    }, 1200);
-  };
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const wrap = { padding: 24, fontFamily: 'system-ui, sans-serif', background: '#f7f7f8', minHeight: '100vh' } as const;
   const card = { maxWidth: 900, margin: '0 auto', background: '#fff', borderRadius: 12, padding: 24, boxShadow: '0 2px 12px rgba(0,0,0,0.08)' } as const;
@@ -32,15 +18,44 @@ export default function ToolPage() {
   const input = { width: '100%', padding: 12, border: '1px solid #ddd', borderRadius: 8 } as const;
   const btn = { padding: '12px 18px', borderRadius: 10, background: '#6c47ff', color: '#fff', fontWeight: 700, border: 0, cursor: 'pointer' } as const;
 
+  // Calls our /api/captions route (real AI)
+  const handleGenerate = async () => {
+    try {
+      setIsLoading(true);
+      setErrorMsg(null);
+      setCaptions([]);
+
+      const res = await fetch("/api/captions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tone, platform, hashtags }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json?.captions) {
+        throw new Error(json?.error || "Failed to generate captions");
+      }
+
+      setCaptions(json.captions);
+    } catch (err: any) {
+      setErrorMsg(err?.message || "AI is busy. Try again.");
+      setCaptions([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main style={wrap}>
       <div style={card}>
-        <h1 style={{ fontSize: 28, margin: 0, textAlign: 'center' }}>Postara Tool</h1>
+        <h1 style={{ fontSize: 32, margin: 0, textAlign: 'center', backgroundImage: 'linear-gradient(90deg,#7c3aed,#3b82f6)', WebkitBackgroundClip: 'text', color: 'transparent', fontWeight: 800 }}>
+          Postara Creator
+        </h1>
         <p style={{ color: '#666', textAlign: 'center', marginTop: 8, marginBottom: 24 }}>
-          Upload media, pick tone, and generate 5 captions (mock for now).
+          AI-powered captions. One click. Post everywhere.
         </p>
 
-        {/* Upload */}
+        {/* Upload (placeholder for future image analysis) */}
         <div style={{ marginBottom: 18 }}>
           <span style={label}>Upload your media</span>
           <input
@@ -73,6 +88,8 @@ export default function ToolPage() {
               <option>TikTok</option>
               <option>Twitter</option>
               <option>Facebook</option>
+              <option>LinkedIn</option>
+              <option>YouTube</option>
             </select>
           </div>
         </div>
@@ -93,9 +110,23 @@ export default function ToolPage() {
         {/* Generate */}
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <button style={btn} onClick={handleGenerate} disabled={isLoading}>
-            {isLoading ? 'Generating… ⏳' : 'Generate 5 Captions 🚀'}
+            {isLoading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <svg className="animate-spin" width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" opacity="0.25" />
+                  <path d="M4 12a8 8 0 0 1 8-8" fill="currentColor" opacity="0.75" />
+                </svg>
+                Generating…
+              </span>
+            ) : "Generate 5 Captions 🚀"}
           </button>
         </div>
+
+        {errorMsg && (
+          <div style={{ marginBottom: 12, color: '#b91c1c', fontSize: 14 }}>
+            {errorMsg}
+          </div>
+        )}
 
         {/* Results */}
         {captions.length > 0 && (
