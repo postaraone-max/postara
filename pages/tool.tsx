@@ -39,6 +39,10 @@ export default function ToolPage() {
   const btnGhost: React.CSSProperties = { padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", background: "transparent" };
   const statusStyle: React.CSSProperties = { fontSize: 14, color: status==="error" ? "#b91c1c" : status==="success" ? "#065f46" : "rgba(0,0,0,0.6)" };
 
+  // sticky action bar
+  const barStyle: React.CSSProperties = { position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 9999, background: "rgba(255,255,255,0.96)", backdropFilter: "blur(6px)", borderTop: "1px solid rgba(0,0,0,0.08)", padding: "10px 16px" };
+  const barInner: React.CSSProperties = { maxWidth: 960, margin: "0 auto", display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between" };
+
   return (
     <main style={mainStyle}>
       <section style={container}>
@@ -49,6 +53,7 @@ export default function ToolPage() {
 
         <MediaUploader name="file" onFileChange={(f) => { setFile(f); setStatus("idle"); setMessage(""); }} helperText="Images or videos. Max 200 MB." />
 
+        {/* Inline controls under preview */}
         <div style={row}>
           <button type="button" onClick={handleUpload} disabled={!canUpload} style={btnPrimary}>
             {uploading ? "Uploading…" : "Upload"}
@@ -57,8 +62,22 @@ export default function ToolPage() {
           <span style={statusStyle} aria-live="polite">{status==="idle" ? "" : message}</span>
         </div>
 
-        {publicUrl && <ShareButtons url={publicUrl} text="Posted with Postara" />}
+        {/* Share grid always visible; disabled until we have a URL */}
+        <ShareButtons url={publicUrl || undefined} text="Posted with Postara" />
       </section>
+
+      {/* Sticky duplicate for always-on-screen action */}
+      <div style={barStyle}>
+        <div style={barInner}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <button type="button" onClick={handleUpload} disabled={!canUpload} style={btnPrimary}>
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+            <button type="button" onClick={handleClear} style={btnGhost}>Clear</button>
+          </div>
+          <div style={statusStyle} aria-live="polite">{status==="idle" ? "" : message}</div>
+        </div>
+      </div>
     </main>
   );
 }

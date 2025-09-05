@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 
-type Props = { url: string; text?: string; title?: string };
+type Props = { url?: string; text?: string; title?: string };
 
 type Network =
   | "x" | "facebook" | "linkedin" | "reddit" | "pinterest"
@@ -30,6 +30,7 @@ const PROVIDERS: Record<Network, {
               build: ({ url, text }) => `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}` },
   threads:  { label: "Threads",     kind: "link",
               build: ({ url, text }) => `https://www.threads.net/intent/post?text=${encodeURIComponent(`${text} ${url}`)}` },
+
   youtube:  { label: "YouTube",   kind: "oauth" },
   instagram:{ label: "Instagram", kind: "oauth" },
   tiktok:   { label: "TikTok",    kind: "oauth" },
@@ -50,25 +51,39 @@ export default function ShareButtons({ url, text = "Posted with Postara", title 
     youtube: false, instagram: false, tiktok: false, snapchat: false, discord: false, messenger: false,
   });
 
+  const ready = !!url;
   const chosen = useMemo(() => ORDER.filter(n => selected[n]), [selected]);
-  const open = (href: string) => window.open(href, "_blank", "noopener,noreferrer,width=900,height=700");
+
+  const open = (href: string) =>
+    window.open(href, "_blank", "noopener,noreferrer,width=900,height=700");
 
   const shareOne = (n: Network) => {
     const cfg = PROVIDERS[n];
+    if (!ready) { alert("Upload to get a public link first."); return; }
     if (cfg.kind === "link" && cfg.build) {
-      open(cfg.build({ url, text, title }));
+      open(cfg.build({ url: url!, text, title }));
       return;
     }
-    alert(`${cfg.label} requires account connection. We’ll add one-click publishing (OAuth) next.`);
+    alert(`${cfg.label} needs account connection (OAuth).`);
   };
 
   const shareSelected = () => { chosen.forEach(n => shareOne(n)); };
+
+  const tagStyle = (isLink: boolean) => ({
+    marginLeft: 8, fontSize: 11,
+    padding: "2px 6px", borderRadius: 8,
+    border: "1px solid rgba(0,0,0,0.1)",
+    background: isLink ? "#eef6ff" : "#fff7ed",
+    color: isLink ? "#1e3a8a" : "#9a3412"
+  });
 
   return (
     <div style={{ border: "1px solid rgba(0,0,0,0.1)", borderRadius: 12, padding: 16, marginTop: 16, background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
         <div style={{ fontWeight: 800 }}>Share</div>
-        <div style={{ fontSize: 12, opacity: 0.7 }}>Uses URL shares now. Direct uploads need OAuth.</div>
+        <div style={{ fontSize: 12, opacity: 0.7 }}>
+          {ready ? "Public link ready." : "Upload first to enable sharing."}
+        </div>
       </div>
 
       <div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(220px,1fr))" }}>
@@ -76,24 +91,19 @@ export default function ShareButtons({ url, text = "Posted with Postara", title 
           const cfg = PROVIDERS[n];
           const isLink = cfg.kind === "link";
           return (
-            <label key={n} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10 }}>
+            <label key={n} style={{ display: "flex", alignItems: "center", gap: 10, padding: 10, border: "1px solid rgba(0,0,0,0.08)", borderRadius: 10, opacity: ready || !isLink ? 1 : 0.6 }}>
               <input
                 type="checkbox"
                 checked={selected[n]}
                 onChange={(e) => setSelected(s => ({ ...s, [n]: e.target.checked }))}
               />
               <span style={{ textTransform: "capitalize", fontWeight: 600 }}>{cfg.label}</span>
-              <span style={{
-                marginLeft: 8, fontSize: 11, padding: "2px 6px", borderRadius: 8,
-                border: "1px solid rgba(0,0,0,0.1)",
-                background: isLink ? "#eef6ff" : "#fff7ed", color: isLink ? "#1e3a8a" : "#9a3412"
-              }}>
-                {isLink ? "link share" : "connect required"}
-              </span>
+              <span style={tagStyle(isLink)}>{isLink ? "link share" : "connect required"}</span>
               <button
                 type="button"
                 onClick={() => shareOne(n)}
-                style={{ marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)" }}
+                disabled={isLink && !ready}
+                style={{ marginLeft: "auto", padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(0,0,0,0.15)", opacity: isLink && !ready ? 0.5 : 1 }}
               >
                 {isLink ? "Share now" : "Connect"}
               </button>
@@ -106,13 +116,14 @@ export default function ShareButtons({ url, text = "Posted with Postara", title 
         <button
           type="button"
           onClick={shareSelected}
-          style={{ padding: "10px 16px", borderRadius: 12, background: "#000", color: "#fff", border: "none" }}
+          disabled={!ready}
+          style={{ padding: "10px 16px", borderRadius: 12, background: "#000", color: "#fff", border: "none", opacity: ready ? 1 : 0.6 }}
         >
           Share selected
         </button>
         <button
           type="button"
-          onClick={async () => { try { await navigator.clipboard.writeText(url); alert("Link copied"); } catch { alert(url); } }}
+          onClick={async () => { if (!ready) { alert("Upload first."); return; } try { await navigator.clipboard.writeText(url!); alert("Link copied"); } catch { alert(url); } }}
           style={{ padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", background: "transparent" }}
         >
           Copy link
