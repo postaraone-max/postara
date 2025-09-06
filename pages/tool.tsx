@@ -1,153 +1,274 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
+﻿// pages/tool.tsx
+import { useEffect, useMemo, useState } from "react";
+import Head from "next/head";
 import ShareButtons from "../components/ShareButtons";
 
-type CapOut = { ok: boolean; caption?: string; hashtags?: string[]; error?: string };
-type UpOut = { ok: boolean; url?: string; error?: string };
+type CaptionResp = {
+  ok: boolean;
+  captions?: string[];
+  hashtags?: string[];
+  error?: string;
+  model?: string;
+  mode?: "vision" | "text";
+};
+
+const TONES = ["Neutral", "Bold", "Friendly", "Professional", "Playful"] as const;
 
 export default function ToolPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<string | null>(null);
-  const [publicUrl, setPublicUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [caption, setCaption] = useState("");
+  const [publicUrl, setPublicUrl] = useState<string>("");
+  const [tone, setTone] = useState<(typeof TONES)[number]>("Neutral");
+  const [n, setN] = useState<number>(5);
+  const [loadingUpload, setLoadingUpload] = useState(false);
+  const [loadingCaptions, setLoadingCaptions] = useState(false);
+  const [error, setError] = useState<string>("");
+  const [captions, setCaptions] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
-  const [err, setErr] = useState<string | null>(null);
+  const [selectedCaptionIdx, setSelectedCaptionIdx] = useState<number | null>(null);
 
-  // NEW: accept ?url= to enable UI without uploading
+  // read ?url=
   useEffect(() => {
-    try {
-      const u = new URL(window.location.href);
-      const q = u.searchParams.get("url");
-      if (q) setPublicUrl(q);
-    } catch {}
+    const u = new URL(window.location.href);
+    const q = u.searchParams.get("url");
+    if (q && /^https?:\/\//i.test(q)) setPublicUrl(q);
   }, []);
 
-  const canGenerate = !!publicUrl;
-  const canUpload = !!file;
+  const selectedCaption = useMemo(() => {
+    if (selectedCaptionIdx == null) return "";
+    const c = captions[selectedCaptionIdx] || "";
+    const tags = hashtags?.length ? " " + hashtags.join(" ") : "";
+    return c + tags;
+  }, [captions, hashtags, selectedCaptionIdx]);
 
-  const captionWithTags = useMemo(() => {
-    const tags = hashtags?.length ? " " + hashtags.map(h => `#${h}`).join(" ") : "";
-    return (caption || "").trim() + tags;
-  }, [caption, hashtags]);
-
-  const onPick = (f: File | null) => {
-    setErr(null);
-    setPublicUrl(null);
-    setCaption("");
+  async function handleUpload() {
+    setError("");
+    setCaptions([]);
     setHashtags([]);
-    setFile(f);
-    setPreview(f ? URL.createObjectURL(f) : null);
-  };
-
-  const onUpload = async () => {
-    if (!file) return;
-    setErr(null);
-    setUploading(true);
+    setSelectedCaptionIdx(null);
+    if (!file) {
+      setError("Select an image or video first.");
+      return;
+    }
     try {
+      setLoadingUpload(true);
       const fd = new FormData();
       fd.append("file", file);
-      const rsp = await fetch("/api/upload", { method: "POST", body: fd });
-      const data: UpOut = await rsp.json();
-      if (!rsp.ok || !data.ok || !data.url) throw new Error(data.error || "Upload failed");
-      setPublicUrl(data.url);
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!j?.ok || !j?.url) {
+        throw new Error(j?.error || "Upload failed");
+      }
+      setPublicUrl(j.url);
     } catch (e: any) {
-      setErr(e?.message || "Upload error");
+      setError(e?.message || "Upload error");
     } finally {
-      setUploading(false);
+      setLoadingUpload(false);
     }
-  };
+  }
 
-  const onGenerate = async () => {
-    if (!publicUrl) return;
-    setErr(null);
-    setGenerating(true);
+  async function handleGenerate() {
+    setError("");
+    setCaptions([]);
+    setHashtags([]);
+    setSelectedCaptionIdx(null);
+    if (!publicUrl) {
+      setError("Provide a public URL (or upload first).");
+      return;
+    }
     try {
-      const rsp = await fetch("/api/caption", {
+      setLoadingCaptions(true);
+      const r = await fetch("/api/caption", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: publicUrl, platform: "generic", tone: "neutral" }),
+        body: JSON.stringify({ url: publicUrl, tone, n }),
       });
-      const data: CapOut = await rsp.json();
-      if (!rsp.ok || !data.ok) throw new Error(data.error || "Caption failed");
-      setCaption(data.caption || "");
-      setHashtags(data.hashtags || []);
+      const j: CaptionResp = await r.json();
+      if (!j.ok) throw new Error(j.error || "Caption API error");
+      const cs = Array.isArray(j.captions) ? j.captions : [];
+      const hs = Array.isArray(j.hashtags) ? j.hashtags : [];
+      if (!cs.length) throw new Error("No captions returned");
+      setCaptions(cs);
+      setHashtags(hs);
+      setSelectedCaptionIdx(0);
     } catch (e: any) {
-      setErr(e?.message || "Caption error");
+      setError(e?.message || "Generation error");
     } finally {
-      setGenerating(false);
+      setLoadingCaptions(false);
     }
-  };
+  }
 
   return (
-    <div style={{ maxWidth: 900, margin: "20px auto", padding: "0 16px" }}>
-      <h1 style={{ fontSize: 22, fontWeight: 700 }}>Postara Tool</h1>
+    <>
+      <Head>
+        <title>Postara Tool</title>
+      </Head>
+      <main style={{ maxWidth: 960, margin: "0 auto", padding: 16 }}>
+        <h1 style={{ fontSize: 28, marginBottom: 8 }}>AI Captions for Creators & Teams</h1>
+        <p style={{ color: "#555", marginBottom: 16 }}>
+          Upload or paste a public URL. Pick tone. Generate {n} options. Select one and share.
+        </p>
 
-      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Upload media</h2>
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-          <input type="file" accept="image/*,video/*" onChange={(e) => onPick(e.target.files?.[0] || null)} />
-          <button
-            type="button"
-            onClick={onUpload}
-            disabled={!canUpload || uploading}
-            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canUpload && !uploading ? "#fff" : "#f3f4f6", cursor: canUpload && !uploading ? "pointer" : "not-allowed", fontWeight: 600 }}
-          >
-            {uploading ? "Uploading…" : "Upload"}
-          </button>
-        </div>
+        {/* Upload + URL */}
+        <section style={card}>
+          <div style={{ display: "grid", gap: 12 }}>
+            <label>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Upload media</div>
+              <input
+                type="file"
+                accept="image/*,video/*"
+                onChange={(e) => setFile(e.target.files?.[0] || null)}
+              />
+            </label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={handleUpload} disabled={!file || loadingUpload} style={btn}>
+                {loadingUpload ? "Uploading..." : "Upload"}
+              </button>
+              <button
+                onClick={() => {
+                  setFile(null);
+                  setPublicUrl("");
+                  setCaptions([]);
+                  setHashtags([]);
+                  setSelectedCaptionIdx(null);
+                }}
+                style={btnGhost}
+              >
+                Clear
+              </button>
+            </div>
 
-        {preview && (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ fontSize: 12, color: "#6b7280" }}>Preview (local)</p>
-            {file?.type?.startsWith("video/") ? (
-              <video src={preview} controls style={{ width: "100%", maxHeight: 360, borderRadius: 8 }} />
-            ) : (
-              <img src={preview} alt="preview" style={{ maxWidth: "100%", borderRadius: 8 }} />
-            )}
+            <label>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Or paste a public URL</div>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={publicUrl}
+                onChange={(e) => setPublicUrl(e.target.value)}
+                style={input}
+              />
+            </label>
+
+            {publicUrl ? (
+              <div style={{ border: "1px solid #eee", padding: 8, borderRadius: 12 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>Preview</div>
+                <img
+                  src={publicUrl}
+                  alt="preview"
+                  style={{ maxWidth: "100%", maxHeight: 320, borderRadius: 12 }}
+                  onError={() => setError("Preview failed. Ensure the URL is public.")}
+                />
+              </div>
+            ) : null}
           </div>
-        )}
+        </section>
 
-        {publicUrl && (
-          <p style={{ marginTop: 8, fontSize: 12 }}>
-            Uploaded URL: <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
-          </p>
-        )}
-      </section>
+        {/* Controls */}
+        <section style={card}>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <label>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Tone</div>
+              <select value={tone} onChange={(e) => setTone(e.target.value as any)} style={input}>
+                {TONES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Caption</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
-          <button
-            type="button"
-            onClick={onGenerate}
-            disabled={!canGenerate || generating}
-            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canGenerate && !generating ? "#fff" : "#f3f4f6", cursor: canGenerate && !generating ? "pointer" : "not-allowed", fontWeight: 600 }}
-          >
-            {generating ? "Generating…" : "Generate caption"}
-          </button>
-        </div>
+            <label>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Options</div>
+              <select value={n} onChange={(e) => setN(parseInt(e.target.value, 10))} style={input}>
+                {[3, 4, 5, 6, 7, 8].map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-        <div style={{ marginTop: 8 }}>
-          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption" rows={3} style={{ width: "100%", borderRadius: 8, border: "1px solid #e5e7eb", padding: 8 }} />
-          {hashtags?.length > 0 && (
-            <p style={{ fontSize: 12, color: "#374151", marginTop: 6 }}>
-              {hashtags.map(h => `#${h}`).join(" ")}
-            </p>
+            <button onClick={handleGenerate} disabled={!publicUrl || loadingCaptions} style={btn}>
+              {loadingCaptions ? "Generating..." : "Generate captions"}
+            </button>
+          </div>
+
+          {error ? (
+            <div style={{ marginTop: 12, color: "#b00020", fontWeight: 600 }}>Error: {error}</div>
+          ) : null}
+        </section>
+
+        {/* Captions */}
+        <section style={card}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Pick one caption</div>
+          {!captions.length ? (
+            <div style={{ color: "#777" }}>No captions yet.</div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {captions.map((c, i) => (
+                <label key={i} style={{ display: "grid", gap: 6, cursor: "pointer" }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="radio"
+                      name="caption"
+                      checked={selectedCaptionIdx === i}
+                      onChange={() => setSelectedCaptionIdx(i)}
+                    />
+                    <div style={{ fontWeight: 600 }}>Option {i + 1}</div>
+                  </div>
+                  <div style={{ background: "#fafafa", border: "1px solid #eee", padding: 10, borderRadius: 10 }}>
+                    {c}
+                    {hashtags?.length ? <div style={{ marginTop: 6, color: "#444" }}>{hashtags.join(" ")}</div> : null}
+                  </div>
+                </label>
+              ))}
+            </div>
           )}
-          <p style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Used in sharing: caption + hashtags + URL.</p>
-        </div>
-      </section>
+        </section>
 
-      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
-        <ShareButtons publicUrl={publicUrl} caption={captionWithTags} />
-      </section>
-
-      {err && <p style={{ marginTop: 12, color: "#b91c1c", fontWeight: 600 }}>Error: {err}</p>}
-    </div>
+        {/* Share */}
+        <section style={card}>
+          <ShareButtons url={publicUrl} caption={selectedCaption} />
+        </section>
+      </main>
+      <style jsx global>{`
+        * { box-sizing: border-box; }
+        body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+        svg, svg * { fill: currentColor; } /* ensure icons visible */
+      `}</style>
+    </>
   );
 }
 
+const card: React.CSSProperties = {
+  border: "1px solid #eee",
+  padding: 16,
+  borderRadius: 16,
+  marginBottom: 16,
+  background: "#fff",
+};
 
+const input: React.CSSProperties = {
+  display: "inline-block",
+  padding: "8px 10px",
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  minWidth: 240,
+};
 
+const btn: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #111",
+  background: "#111",
+  color: "#fff",
+  cursor: "pointer",
+};
 
+const btnGhost: React.CSSProperties = {
+  padding: "10px 14px",
+  borderRadius: 10,
+  border: "1px solid #ddd",
+  background: "#fff",
+  color: "#111",
+  cursor: "pointer",
+};
