@@ -1,70 +1,149 @@
-import React, { useMemo, useState } from "react";
-import dynamic from "next/dynamic";
+import React, { useEffect, useMemo, useState } from "react";
+import ShareButtons from "../components/ShareButtons";
 
-const MediaUploader = dynamic(() => import("../components/MediaUploader"), { ssr: false });
-const ShareButtons = dynamic(() => import("../components/ShareButtons"), { ssr: false });
-
-type Status = "idle" | "uploading" | "success" | "error";
+type CapOut = { ok: boolean; caption?: string; hashtags?: string[]; error?: string };
+type UpOut = { ok: boolean; url?: string; error?: string };
 
 export default function ToolPage() {
   const [file, setFile] = useState<File | null>(null);
-  const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState("");
-  const [publicUrl, setPublicUrl] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [err, setErr] = useState<string | null>(null);
 
-  const uploading = status === "uploading";
-  const canUpload = useMemo(() => !!file && !uploading, [file, uploading]);
-
-  async function handleUpload() {
-    if (!file) { setStatus("error"); setMessage("Choose a file."); return; }
+  // NEW: accept ?url= to enable UI without uploading
+  useEffect(() => {
     try {
-      setStatus("uploading"); setMessage("");
-      const fd = new FormData(); fd.append("file", file, file.name);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data: any = await res.json();
-      if (!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-      const url = data?.url || data?.secure_url;
-      if (!url) throw new Error("No public URL returned. Check Cloudinary env.");
-      setPublicUrl(url);
-      setStatus("success"); setMessage("Uploaded.");
-    } catch (err: any) { setStatus("error"); setMessage(err?.message || "Upload failed."); }
-  }
+      const u = new URL(window.location.href);
+      const q = u.searchParams.get("url");
+      if (q) setPublicUrl(q);
+    } catch {}
+  }, []);
 
-  function handleClear() { setStatus("idle"); setMessage(""); setFile(null); setPublicUrl(""); }
+  const canGenerate = !!publicUrl;
+  const canUpload = !!file;
 
-  const container: React.CSSProperties = { maxWidth: 960, margin: "0 auto", padding: "40px 16px" };
-  const row: React.CSSProperties = { marginTop: 16, display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" };
-  const btnPrimary: React.CSSProperties = { padding: "10px 16px", borderRadius: 12, border: "none", background: "#000", color: "#fff", opacity: canUpload ? 1 : 0.6, cursor: canUpload ? "pointer" : "not-allowed" };
-  const btnGhost: React.CSSProperties = { padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(0,0,0,0.15)", background: "transparent" };
-  const statusStyle: React.CSSProperties = { fontSize: 14, color: status==="error" ? "#b91c1c" : status==="success" ? "#065f46" : "rgba(0,0,0,0.6)" };
-  const urlStyle: React.CSSProperties = { fontSize: 13, color: "#065f46", wordBreak: "break-all" };
+  const captionWithTags = useMemo(() => {
+    const tags = hashtags?.length ? " " + hashtags.map(h => `#${h}`).join(" ") : "";
+    return (caption || "").trim() + tags;
+  }, [caption, hashtags]);
+
+  const onPick = (f: File | null) => {
+    setErr(null);
+    setPublicUrl(null);
+    setCaption("");
+    setHashtags([]);
+    setFile(f);
+    setPreview(f ? URL.createObjectURL(f) : null);
+  };
+
+  const onUpload = async () => {
+    if (!file) return;
+    setErr(null);
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const rsp = await fetch("/api/upload", { method: "POST", body: fd });
+      const data: UpOut = await rsp.json();
+      if (!rsp.ok || !data.ok || !data.url) throw new Error(data.error || "Upload failed");
+      setPublicUrl(data.url);
+    } catch (e: any) {
+      setErr(e?.message || "Upload error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onGenerate = async () => {
+    if (!publicUrl) return;
+    setErr(null);
+    setGenerating(true);
+    try {
+      const rsp = await fetch("/api/caption", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: publicUrl, platform: "generic", tone: "neutral" }),
+      });
+      const data: CapOut = await rsp.json();
+      if (!rsp.ok || !data.ok) throw new Error(data.error || "Caption failed");
+      setCaption(data.caption || "");
+      setHashtags(data.hashtags || []);
+    } catch (e: any) {
+      setErr(e?.message || "Caption error");
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   return (
-    <main style={{ minHeight: "100vh", background: "linear-gradient(#fff,#f7f7f7)" }}>
-      <section style={container}>
-        <header style={{ marginBottom: 24 }}>
-          <h1 style={{ fontSize: 32, fontWeight: 800, margin: 0 }}>Upload media</h1>
-        </header>
+    <div style={{ maxWidth: 900, margin: "20px auto", padding: "0 16px" }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700 }}>Postara Tool</h1>
 
-        <MediaUploader
-          name="file"
-          onFileChange={(f) => { setFile(f); setStatus("idle"); setMessage(""); }}
-          helperText="Images or videos. Max 200 MB."
-        />
-
-        <div style={row}>
-          <button type="button" onClick={handleUpload} disabled={!canUpload} style={btnPrimary}>
-            {uploading ? "Uploadingâ€¦" : "Upload"}
+      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Upload media</h2>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
+          <input type="file" accept="image/*,video/*" onChange={(e) => onPick(e.target.files?.[0] || null)} />
+          <button
+            type="button"
+            onClick={onUpload}
+            disabled={!canUpload || uploading}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canUpload && !uploading ? "#fff" : "#f3f4f6", cursor: canUpload && !uploading ? "pointer" : "not-allowed", fontWeight: 600 }}
+          >
+            {uploading ? "Uploading…" : "Upload"}
           </button>
-          <button type="button" onClick={handleClear} style={btnGhost}>Clear</button>
-          <span style={statusStyle} aria-live="polite">{status==="idle" ? "" : message}</span>
         </div>
 
-        {publicUrl && <div style={{ marginTop: 8 }}><div style={urlStyle}>URL: {publicUrl}</div></div>}
+        {preview && (
+          <div style={{ marginTop: 12 }}>
+            <p style={{ fontSize: 12, color: "#6b7280" }}>Preview (local)</p>
+            {file?.type?.startsWith("video/") ? (
+              <video src={preview} controls style={{ width: "100%", maxHeight: 360, borderRadius: 8 }} />
+            ) : (
+              <img src={preview} alt="preview" style={{ maxWidth: "100%", borderRadius: 8 }} />
+            )}
+          </div>
+        )}
 
-        {/* Share grid: enabled only when publicUrl exists */}
-        <ShareButtons url={publicUrl || undefined} text="Posted with Postara" />
+        {publicUrl && (
+          <p style={{ marginTop: 8, fontSize: 12 }}>
+            Uploaded URL: <a href={publicUrl} target="_blank" rel="noreferrer">{publicUrl}</a>
+          </p>
+        )}
       </section>
-    </main>
+
+      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600 }}>Caption</h2>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={onGenerate}
+            disabled={!canGenerate || generating}
+            style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canGenerate && !generating ? "#fff" : "#f3f4f6", cursor: canGenerate && !generating ? "pointer" : "not-allowed", fontWeight: 600 }}
+          >
+            {generating ? "Generating…" : "Generate caption"}
+          </button>
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <textarea value={caption} onChange={(e) => setCaption(e.target.value)} placeholder="Caption" rows={3} style={{ width: "100%", borderRadius: 8, border: "1px solid #e5e7eb", padding: 8 }} />
+          {hashtags?.length > 0 && (
+            <p style={{ fontSize: 12, color: "#374151", marginTop: 6 }}>
+              {hashtags.map(h => `#${h}`).join(" ")}
+            </p>
+          )}
+          <p style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>Used in sharing: caption + hashtags + URL.</p>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 16, padding: 12, border: "1px solid #e5e7eb", borderRadius: 12 }}>
+        <ShareButtons publicUrl={publicUrl} caption={captionWithTags} />
+      </section>
+
+      {err && <p style={{ marginTop: 12, color: "#b91c1c", fontWeight: 600 }}>Error: {err}</p>}
+    </div>
   );
 }

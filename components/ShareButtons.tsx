@@ -1,4 +1,3 @@
-// components/ShareButtons.tsx
 import React, { useMemo, useState } from "react";
 
 type Props = { publicUrl: string | null; caption: string };
@@ -23,7 +22,7 @@ const IconBox =
 const icons = {
   x: IconBox("M3 3l7.5 8.5L3 21h3l6-6.8L18.7 21H21l-7.8-8.9L21 3h-3l-5.6 6.3L6 3H3z"),
   fb: IconBox("M13 3h3v3h-3v3h3v3h-3v9h-3v-9H7V9h3V6a3 3 0 013-3z"),
-  li: IconBox("M4 4a 2 2 0 114 0 2 2 0 01-4 0zM4 8h4v12H4zM10 8h4v2h.1a4 4 0 013.9-2c4 0 4 2.6 4 6v6h-4v-5c0-1.2 0-2.8-1.7-2.8S14 13.7 14 15v5h-4z"),
+  li: IconBox("M4 4a2 2 0 114 0 2 2 0 01-4 0zM4 8h4v12H4zM10 8h4v2h.1a4 4 0 013.9-2c4 0 4 2.6 4 6v6h-4v-5c0-1.2 0-2.8-1.7-2.8S14 13.7 14 15v5h-4z"),
   rd: IconBox("M20 11a3 3 0 01-3 3v1a4 4 0 01-4 4H11a4 4 0 01-4-4v-1a3 3 0 113-3h6a3 3 0 013 3z"),
   pt: IconBox("M12 2a7 7 0 00-7 7c0 3.1 1.9 5.8 4.7 6.8-.1-.6-.2-1.5 0-2.1.2-.7 1.5-4.6 1.5-4.6s-.4-.9-.4-2c0-1.8 1-3.1 2.2-3.1s1.4 1 1.4 2.2-1 3.4-1.5 5.3c-.4 1.3.8 2.3 2 1.3 1.4-1.1 2.4-3 2.4-4.8 0-3.2-2.7-5.6-5.3-5.6z"),
   wa: IconBox("M20 3.5A10 10 0 004 17.3L3 21l3.8-1A10 10 0 1020 3.5zM7.6 17.2l-.2.1 1-.3.2-.1A8 8 0 1118 6a8 8 0 01-10.4 11.2z"),
