@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+ï»¿import React, { useEffect, useMemo, useState } from "react";
 import ShareButtons from "../components/ShareButtons";
 
 type CapOut = { ok: boolean; caption?: string; hashtags?: string[]; error?: string };
@@ -93,7 +93,7 @@ export default function ToolPage() {
             disabled={!canUpload || uploading}
             style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canUpload && !uploading ? "#fff" : "#f3f4f6", cursor: canUpload && !uploading ? "pointer" : "not-allowed", fontWeight: 600 }}
           >
-            {uploading ? "Uploading…" : "Upload"}
+            {uploading ? "Uploadingâ€¦" : "Upload"}
           </button>
         </div>
 
@@ -124,7 +124,7 @@ export default function ToolPage() {
             disabled={!canGenerate || generating}
             style={{ padding: "8px 12px", borderRadius: 10, border: "1px solid #d1d5db", background: canGenerate && !generating ? "#fff" : "#f3f4f6", cursor: canGenerate && !generating ? "pointer" : "not-allowed", fontWeight: 600 }}
           >
-            {generating ? "Generating…" : "Generate caption"}
+            {generating ? "Generatingâ€¦" : "Generate caption"}
           </button>
         </div>
 
@@ -147,3 +147,7 @@ export default function ToolPage() {
     </div>
   );
 }
+
+
+
+
