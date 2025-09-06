@@ -18,33 +18,22 @@ function ensureCloudinary() {
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== "POST") {
-    res.setHeader("Allow", ["POST"]);
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
+  if (req.method !== "POST") { res.setHeader("Allow", ["POST"]); return res.status(405).json({ error: "Method Not Allowed" }); }
   try {
     ensureCloudinary();
 
-    const form = formidable({
-      multiples: false,
-      maxFileSize: 200 * 1024 * 1024,
-      uploadDir: os.tmpdir(),
-      keepExtensions: true,
-    });
-
+    const form = formidable({ multiples: false, maxFileSize: 200 * 1024 * 1024, uploadDir: os.tmpdir(), keepExtensions: true });
     const [fields, files] = await form.parse(req);
     const anyFile = (files as any)?.file;
     const file = Array.isArray(anyFile) ? anyFile[0] : anyFile;
     if (!file) return res.status(400).json({ error: "Missing file field 'file'." });
 
-    const result = await cloudinary.uploader.upload(file.filepath, {
-      resource_type: "auto",
-      folder: "postara",
-    });
+    const result = await cloudinary.uploader.upload(file.filepath, { resource_type: "auto", folder: "postara" });
 
     return res.status(200).json({
       ok: true,
       url: result.secure_url,
+      secure_url: result.secure_url,
       public_id: result.public_id,
       bytes: result.bytes,
       width: result.width,
